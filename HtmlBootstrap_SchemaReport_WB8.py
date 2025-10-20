@@ -2,6 +2,7 @@
 # Script to Generate an HTML Schema Report from Mysql Model
 # Author: Tito Sanchez
 # Update by: Fernando Gil
+# Update2 by: Mgil10
 # Written in MySQL Workbench 8.0.25
 
 # To install this Plugin on MySQL Workbench version 8.0:
@@ -17,8 +18,8 @@ import mforms
 
 ModuleInfo = DefineModule(
     name="DBReportHTML",
-    author="Tito Sanchez",
-    version="1.0",
+    author="Tito Sanchez & Mgil10",
+    version="1.1",
     description="Database Schema Report in HTML format (with Bootstrap)",
 )
 
@@ -32,124 +33,156 @@ ModuleInfo = DefineModule(
 )
 @ModuleInfo.export(grt.INT, grt.classes.db_Catalog)
 def htmlDataDictionary(catalog):
-    # Put plugin contents here
-    htmlOut = ""
     filechooser = FileChooser(mforms.SaveFile)
     filechooser.set_extensions("HTML File (*.html)|*.html", "html")
-    if filechooser.run_modal():
-        htmlOut = filechooser.get_path()
-    print("HTML File: %s" % (htmlOut))
-    if len(htmlOut) <= 1:
+    if not filechooser.run_modal():
         return 1
-    
+    htmlOut = filechooser.get_path()
+    if not htmlOut:
+        return 1
+
     schema = catalog.schemata[0]
-    
-    # Start HTML
-    htmlFile = open(htmlOut, "w")
-    htmlFile.write("<html><head>")
-    htmlFile.write("<title>Schema Report for database: %s</title> \n" % (schema.name))
-    htmlFile.write(
-        """
-        <!doctype html><html lang="en">
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
-            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
-            <title>%s - Schema Report</title>
-        </head>
-        <body>
-        """
-        % (schema.name)
+    html = []
+
+    # HTML HEADER
+    html.append(
+        f"""<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{schema.name} - Schema Report</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {{ background-color: #f8f9fa; }}
+        .table th {{ background-color: #e9ecef; }}
+        .relation-badge {{ font-size: 0.85rem; }}
+    </style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-primary mb-4">
+  <div class="container-fluid">
+    <span class="navbar-brand mb-0 h1">Schema Report: {schema.name}</span>
+  </div>
+</nav>
+
+<div class="container mb-5">
+  <h2>Índice</h2>
+  <ul class="list-group">
+    <li class="list-group-item"><a href="#tables">Tablas</a></li>
+    <li class="list-group-item"><a href="#views">Vistas</a></li>
+    <li class="list-group-item"><a href="#relations">Relaciones</a></li>
+  </ul>
+  <hr>
+"""
     )
 
-    # Header and Navigation
-    htmlFile.write(
-        """
-        <header>
-            <nav class="navbar navbar-dark bg-primary">
-             <div class="container-fluid">
-               <span class="navbar-brand mb-0 h1"><h1>Schema Report for Database: %s</h1></span>
-             </div>
-            </nav>
-        </header>
-        """
-        % (schema.name)
-    )
-
-     # List of Tables
-    htmlFile.write(
-        """
-        <div class="container">
-          <div class="my-5">
-            <span id="home" class="fs-1 text-decoration-none">Table List </span>
-            <ul class="list-group">
-        """
-    )
+    # TABLES SECTION
+    html.append('<h2 id="tables" class="mt-5 mb-3">Tablas</h2>')
     for table in schema.tables:
-        htmlFile.write(
-            '<li class="list-group-item"><a class="fw-bold text-decoration-none" href="#%s">%s </a></li> \n'
-            % (table.name, table.name)
-        )
-    htmlFile.write("</ul> </div>\n")
-
-    # Table details
-    for table in schema.tables:
-        htmlFile.write(
-            """
-        <span id="%s" class="fs-3 text-decoration-none">Table: %s</span><br>
-        <p class="fw-bold mt-3">Description/Comments</p>
-        <p class="fw-light">%s</p><hr>
-        """
-            % (table.name, table.name, table.comment)
-        )
-
-        htmlFile.write(
-            """
-        <table class="table table-bordered table-striped">
-        <tr>
-        <th>Name</th>
-        <th>Data Type</th>
-        <th>Not Null</th>
-        <th>PK</th>
-        <th>FK</th>
-        <th>Default</th>
-        <th>Comment</th>
-        </tr>
+        html.append(
+            f"""
+        <div class="card mb-4 shadow-sm">
+          <div class="card-header bg-secondary text-white">
+            <h5 id="{table.name}" class="mb-0">{table.name}</h5>
+          </div>
+          <div class="card-body">
+            <p><strong>Comentarios:</strong> {table.comment or "Sin comentarios"}</p>
+            <div class="table-responsive">
+              <table class="table table-bordered table-striped table-sm align-middle">
+                <thead><tr>
+                  <th>Nombre</th><th>Tipo de dato</th><th>Not Null</th><th>PK</th><th>FK</th><th>Default</th><th>Comentario</th>
+                </tr></thead><tbody>
         """
         )
-
         for column in table.columns:
-            pk = ("No", "Yes")[bool(table.isPrimaryKeyColumn(column))]
-            fk = ("No", "Yes")[bool(table.isForeignKeyColumn(column))]
-            nn = ("No", "Yes")[bool(column.isNotNull)]
-            htmlFile.write(
-                "<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr> \n"
-                % (
-                    column.name,
-                    column.formattedType,
-                    nn,
-                    pk,
-                    fk,
-                    column.defaultValue,
-                    column.comment,
-                )
+            pk = "✅" if table.isPrimaryKeyColumn(column) else ""
+            fk = "🔗" if table.isForeignKeyColumn(column) else ""
+            nn = "✔️" if column.isNotNull else ""
+            html.append(
+                f"<tr><td>{column.name}</td><td>{column.formattedType}</td><td>{nn}</td><td>{pk}</td><td>{fk}</td><td>{column.defaultValue or ''}</td><td>{column.comment or ''}</td></tr>"
             )
-        htmlFile.write(
-            """
-        </table>
-        <a href=\"#home\" class="btn btn-primary">Back to Table List</a></br></br></br>
-        """
+        html.append("</tbody></table></div>")
+
+        # Foreign keys
+        if table.foreignKeys:
+            html.append("<p><strong>Claves foráneas:</strong></p><ul>")
+            for fk in table.foreignKeys:
+                ref_table = fk.referencedTable.name if fk.referencedTable else "?"
+                html.append(
+                    f"<li>{fk.name or '(sin nombre)'} → <span class='badge bg-info text-dark relation-badge'>{ref_table}</span></li>"
+                )
+            html.append("</ul>")
+        else:
+            html.append("<p><em>Sin claves foráneas.</em></p>")
+
+        html.append(
+            f'<a href="#tables" class="btn btn-outline-primary mt-3">Volver al listado</a></div></div>'
         )
 
-    # footer
-    htmlFile.write("</body></html>\n")
-    htmlFile.close()
+    # VIEWS SECTION
+    html.append('<h2 id="views" class="mt-5 mb-3">Vistas</h2>')
+    if schema.views:
+        for view in schema.views:
+            html.append(
+                f"""
+            <div class="card mb-3">
+              <div class="card-header bg-dark text-white">
+                <h5 id="view_{view.name}" class="mb-0">{view.name}</h5>
+              </div>
+              <div class="card-body">
+                <p><strong>Comentarios:</strong> {view.comment or "Sin comentarios"}</p>
+                <p><strong>Definición SQL:</strong></p>
+                <pre class="bg-light p-2 border">{view.sqlDefinition or "(No disponible)"}</pre>
+                <a href="#views" class="btn btn-outline-secondary">Volver al listado</a>
+              </div>
+            </div>
+            """
+            )
+    else:
+        html.append("<p>No hay vistas definidas.</p>")
+
+    # RELATIONS SECTION
+    html.append('<h2 id="relations" class="mt-5 mb-3">Relaciones entre tablas</h2>')
+    relations = []
+    for table in schema.tables:
+        for fk in table.foreignKeys:
+            if fk.referencedTable:
+                relations.append((table.name, fk.referencedTable.name, fk.name))
+    if relations:
+        html.append(
+            '<div class="table-responsive"><table class="table table-bordered"><thead><tr><th>Tabla origen</th><th>Tabla destino</th><th>Clave foránea</th></tr></thead><tbody>'
+        )
+        for src, dest, fkname in relations:
+            html.append(
+                f"<tr><td>{src}</td><td>{dest}</td><td>{fkname or '(sin nombre)'}</td></tr>"
+            )
+        html.append("</tbody></table></div>")
+    else:
+        html.append("<p>No existen relaciones entre tablas.</p>")
+
+    # FOOTER
+    html.append(
+        """
+  <footer class="mt-5 text-center text-muted">
+    <hr>
+    <p>Generado automáticamente por DBReportHTML</p>
+  </footer>
+</div>
+</body></html>
+"""
+    )
+
+    with open(htmlOut, "w", encoding="utf-8") as f:
+        f.write("\n".join(html))
+
     Utilities.show_message(
-        "Report generated",
-        "HTML Report format from current model generated in %s" % htmlOut,
+        "Informe generado",
+        f"El informe HTML se ha creado correctamente en:\n{htmlOut}",
         "OK",
         "",
         "",
     )
+
     return 0
